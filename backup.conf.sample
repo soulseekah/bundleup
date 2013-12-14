@@ -12,6 +12,8 @@ do_backup() {
 	cp -rv /path/to/my/files
 	cp -rv /path/to/images images
 	cp ssh-keys .
+	
+	mysqldump -ume -pme --all-databses --skip-dump-date --extended-insert > databases.sql
 }
 
 process_bundle() {
