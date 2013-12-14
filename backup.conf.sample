@@ -1,0 +1,21 @@
+#!/bin/bash
+
+post_create_repository() {
+	# Prevent recursive
+	echo ".backup" >> .gitignore
+}
+
+do_backup() {
+	mkdir images
+	mkdir database
+
+	cp -rv /path/to/my/files
+	cp -rv /path/to/images images
+	cp ssh-keys .
+}
+
+process_bundle() {
+	BUNDLE=$1
+
+	scp "$BUNDLE" me@backups:~/project/
+}
