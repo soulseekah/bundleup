@@ -39,9 +39,11 @@
 #
 
 set -e
+set -x
 
 BACKUP_REPOSITORY_PATH=${BACKUP_REPOSITORY_PATH:-`pwd`/.backup}
 BACKUP_CONFIG_PATH=${BACKUP_CONFIG_PATH:-`pwd`/backup.conf}
+REDUNDANCY=${REDUNDANCY:-"3"}
 
 if [ -f "$BACKUP_CONFIG_PATH" ]; then
 	source "$BACKUP_CONFIG_PATH"
@@ -84,6 +86,7 @@ cd $BACKUP_REPOSITORY_PATH
 if [ "`git rev-parse --show-toplevel`" != "$BACKUP_REPOSITORY_PATH" ]; then
 	echo "** No repository detected in $BACKUP_REPOSITORY_PATH. Creating..." 1>&2;
 	git init
+	mkdir - .git/bundles
 	post_create_repository
 fi
 
@@ -93,17 +96,22 @@ do_backup
 git add -A
 if [ "`git diff --cached --name-only`" ]; then
 	git commit -m "Automated backup `date`" --author="`whoami` <`whoami`@`hostname`>"
-	CURRENT_CHECKPOINT=`git rev-parse HEAD`
-	if [ ! -f ".git/backup" ]; then
+
+	CURRENT_CHECKPOINT=`git rev-parse --verify HEAD`
+	REDUNDANCY_LIMIT=$((`git rev-list HEAD | wc -l` - 1))
+
+	(($REDUNDANCY < $REDUNDANCY_LIMIT)) || REDUNDANCY=$REDUNDANCY_LIMIT
+
+	if [ ! `git rev-parse --verify HEAD^` ]; then
 		BUNDLE="backup."`date +%Y%m%d%H%M%S`".master."$CURRENT_CHECKPOINT".bundle"
-		git bundle create "$BUNDLE" master
+		git bundle create "$BUNDLE" HEAD
 	else
-		LAST_CHECKPOINT=`cat .git/backup`
+		LAST_CHECKPOINT=`git rev-parse --verify HEAD^`
 		BUNDLE="backup."`date +%Y%m%d%H%M%S`"."$LAST_CHECKPOINT"."$CURRENT_CHECKPOINT".bundle"
-		git bundle create "$BUNDLE" "$LAST_CHECKPOINT"..master
+		git bundle create "$BUNDLE" "HEAD~$REDUNDANCY"..HEAD
 	fi
 
-	echo -n $CURRENT_CHECKPOINT > .git/backup
+	cp $BUNDLE .git/bundles/
 
 	process_bundle $BUNDLE
 fi
